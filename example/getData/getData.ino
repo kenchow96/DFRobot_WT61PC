@@ -1,61 +1,84 @@
-
 /*!
  * @file getData.ino
- * @brief Set the frequency of data output by the sensor, read the acceleration, 
- * @n angular velocity, and angle of X, Y, and Z axes.
- * @n Experimental phenomenon: when the sensor starts, it outputs data at the set 
- * @n frequency and the data will be displayed on serial monitor.
- * @copyright Copyright (c) 2010 DFRobot Co.Ltd (http://www.dfrobot.com)
+ * @brief Non-blocking yaw / pitch / roll from a WT61PC (WitMotion WT61P) on an
+ *        RP2040 (Earle Philhower arduino-pico core).
+ *
+ * Wiring (Raspberry Pi Pico, Serial1 = UART0):
+ *   WT61PC VCC -> 3V3      (3.3 V keeps the module's TX at RP2040-safe levels)
+ *   WT61PC GND -> GND
+ *   WT61PC TX  -> GP1 (Serial1 RX)
+ *   WT61PC RX  -> GP0 (Serial1 TX)
+ *
+ * First boot: begin() finds the module at its factory 9600 baud, switches it to
+ * angle-only output at 200 Hz and 921600 baud and saves that. Power-cycle the
+ * module once afterwards in case its firmware only applies the rate on reboot.
+ * Later boots detect it at 921600 straight away and write nothing.
+ *
+ * loop() never waits on the sensor: imu.update() only parses bytes that are
+ * already buffered, and printing is skipped if the USB buffer is full.
+ *
  * @license The MIT License (MIT)
- * @author [huyujie](yujie.hu@dfrobot.com)
- * @version V1.0
- * @date 2023-07-12
- * @url https://github.com/DFRobot/DFRobot_WT61PC
  */
 #include <DFRobot_WT61PC.h>
 
+#define IMU_SERIAL Serial1
+#define IMU_RX_PIN 1
+#define IMU_TX_PIN 0
 
-#if (defined(ARDUINO_AVR_UNO) || defined(ESP8266))   // Using a soft serial port
-#include <SoftwareSerial.h>
-SoftwareSerial softSerial(/*rx =*/10, /*tx =*/11);
-#define FPSerial softSerial
-#else
-#define FPSerial Serial1
-#endif
+DFRobot_WT61PC imu(IMU_SERIAL);
 
-DFRobot_WT61PC sensor(&FPSerial);
+// Format centi-degrees as "-123.45" without float printf.
+static char *fmtCenti(char *p, int32_t cd)
+{
+  if (cd < 0) { *p++ = '-'; cd = -cd; }
+  p += sprintf(p, "%ld.%02ld", (long)(cd / 100), (long)(cd % 100));
+  return p;
+}
+
+static int32_t rawToCenti(int16_t raw)
+{
+  return ((int32_t)raw * 18000L) / 32768L;   // 180 deg full scale, 0.01 deg units
+}
 
 void setup()
 {
-  //Use Serial as debugging serial port 
-  Serial.begin(115200);
+  Serial.begin(115200);   // USB CDC: the number is ignored, it runs at USB speed
 
-#if (defined ESP32)
-  FPSerial.begin(9600, SERIAL_8N1, /*rx =*/D3, /*tx =*/D2);
-#else
-  FPSerial.begin(9600);
+#if defined(ARDUINO_ARCH_RP2040)
+  IMU_SERIAL.setRX(IMU_RX_PIN);
+  IMU_SERIAL.setTX(IMU_TX_PIN);
+  IMU_SERIAL.setFIFOSize(256);   // ~23 packets of slack if loop() ever stalls
 #endif
 
-  /**
-   * @brief Revise the data output frequncy of sensor
-   * @param frequency - FREQUENCY_0_1HZ for 0.1Hz, FREQUENCY_0_5HZ for 0.5Hz, FREQUENCY_1HZ for 1Hz, 
-   * @n                 FREQUENCY_2HZ for 2Hz, FREQUENCY_5HZ for 5Hz, FREQUENCY_10HZ for 10Hz, 
-   * @n                 FREQUENCY_20HZ for 20Hz, FREQUENCY_50HZ for 50Hz, FREQUENCY_100HZ for 100Hz, 
-   * @n                 FREQUENCY_125HZ for 125Hz, FREQUENCY_200HZ for 200Hz.
-   */
-  sensor.modifyFrequency(FREQUENCY_10HZ);
+  // 921600 baud, 200 Hz, angle packets only.
+  while (!imu.begin(WT61PC_DEFAULT_BAUD, FREQUENCY_200HZ)) {
+    Serial.println("WT61PC not found, retrying...");
+    delay(200);
+  }
+  Serial.print("WT61PC ready at ");
+  Serial.print(imu.baud());
+  Serial.println(" baud");
 }
-
 
 void loop()
 {
-  if (sensor.available()) {
-    Serial.print("Acc\t"); Serial.print(sensor.Acc.X); Serial.print("\t");
-    Serial.print(sensor.Acc.Y); Serial.print("\t"); Serial.println(sensor.Acc.Z); //acceleration information of X,Y,Z
-    Serial.print("Gyro\t"); Serial.print(sensor.Gyro.X); Serial.print("\t");
-    Serial.print(sensor.Gyro.Y); Serial.print("\t"); Serial.println(sensor.Gyro.Z); //angular velocity information of X,Y,Z
-    Serial.print("Angle\t"); Serial.print(sensor.Angle.X); Serial.print("\t");
-    Serial.print(sensor.Angle.Y); Serial.print("\t"); Serial.println(sensor.Angle.Z); //angle information of X, Y, Z 
-    Serial.println();
+  if (imu.update()) {
+    // CSV: yaw,pitch,roll (degrees)
+    char line[40];
+    char *p = line;
+    p = fmtCenti(p, rawToCenti(imu.rawYaw()));   *p++ = ',';
+    p = fmtCenti(p, rawToCenti(imu.rawPitch())); *p++ = ',';
+    p = fmtCenti(p, rawToCenti(imu.rawRoll()));  *p++ = '\n';
+    const size_t len = p - line;
+    if ((size_t)Serial.availableForWrite() >= len) {
+      Serial.write((const uint8_t *)line, len);
+    }
+    // Floats are also available: imu.yaw(), imu.pitch(), imu.roll()
   }
+
+  if (imu.age() > 100) {
+    // No angle packet for 100 ms: sensor unplugged / browned out.
+  }
+
+  // ... the rest of your application runs here at full speed ...
 }

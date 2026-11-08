@@ -12,17 +12,35 @@ DFRobot_WT61PC	KEYWORD1
 # Methods and Functions  (KEYWORD2)
 #######################################
 
+begin	KEYWORD2
+update	KEYWORD2
 available	KEYWORD2
 modifyFrequency	KEYWORD2
+roll	KEYWORD2
+pitch	KEYWORD2
+yaw	KEYWORD2
+rawRoll	KEYWORD2
+rawPitch	KEYWORD2
+rawYaw	KEYWORD2
+age	KEYWORD2
+lastUpdateMicros	KEYWORD2
+packetCount	KEYWORD2
+errorCount	KEYWORD2
+baud	KEYWORD2
+unlock	KEYWORD2
+save	KEYWORD2
+setRate	KEYWORD2
+setOutputContent	KEYWORD2
+setBaud	KEYWORD2
+baudCode	KEYWORD2
 
 #######################################
 # Constants   (LITERAL1)
 #######################################
 
-Acc	LITERAL1
-Gyro	LITERAL1
 Angle	LITERAL1
 FREQUENCY_0_1HZ	LITERAL1
+FREQUENCY_0_2HZ	LITERAL1
 FREQUENCY_0_5HZ	LITERAL1
 FREQUENCY_1HZ	LITERAL1
 FREQUENCY_2HZ	LITERAL1
@@ -33,3 +51,4 @@ FREQUENCY_50HZ	LITERAL1
 FREQUENCY_100HZ	LITERAL1
 FREQUENCY_125HZ	LITERAL1
 FREQUENCY_200HZ	LITERAL1
+WT61PC_DEFAULT_BAUD	LITERAL1
