@@ -1,7 +1,7 @@
 /*!
- * @file  DFRobot_WT61PC.h
+ * @file  WT61P_YPR.h
  * @brief Non-blocking, angle-only (roll / pitch / yaw) driver for the
- *        DFRobot WT61PC (SEN0386) == WitMotion WT61P serial AHRS module.
+ *        WitMotion WT61P serial AHRS module (also sold as DFRobot WT61PC, SEN0386).
  *
  * Design goals
  *  - update() never waits: it only consumes bytes already sitting in the
@@ -18,43 +18,43 @@
  *
  * @copyright Copyright (c) 2010 DFRobot Co.Ltd (http://www.dfrobot.com)
  * @license   The MIT License (MIT)
- * @version   V2.0
+ * @version   V1.0
  */
-#ifndef __DFRobot_WT61PC_H__
-#define __DFRobot_WT61PC_H__
+#ifndef WT61P_YPR_H
+#define WT61P_YPR_H
 
 #include <Arduino.h>
 
-// Output-rate codes (register 0x03, RATE). Names kept from V1 for
-// compatibility. NB: per the WitMotion datasheet code 0x01 is 0.2 Hz.
-#define FREQUENCY_0_1HZ   0x01
-#define FREQUENCY_0_2HZ   0x01
-#define FREQUENCY_0_5HZ   0x02
-#define FREQUENCY_1HZ     0x03
-#define FREQUENCY_2HZ     0x04
-#define FREQUENCY_5HZ     0x05
-#define FREQUENCY_10HZ    0x06
-#define FREQUENCY_20HZ    0x07
-#define FREQUENCY_50HZ    0x08
-#define FREQUENCY_100HZ   0x09
-#define FREQUENCY_125HZ   0x0A
-#define FREQUENCY_200HZ   0x0B
-
 // Fastest baud rate the module supports (datasheet 5.2.10).
-#ifndef WT61PC_DEFAULT_BAUD
-#define WT61PC_DEFAULT_BAUD 921600UL
+#ifndef WT61P_DEFAULT_BAUD
+#define WT61P_DEFAULT_BAUD 921600UL
 #endif
 
-class DFRobot_WT61PC
+class WT61P_YPR
 {
 public:
+  /** Output-rate codes (register 0x03, RATE), e.g. WT61P_YPR::RATE_200HZ. */
+  enum Rate : uint8_t {
+    RATE_0_2HZ = 0x01,
+    RATE_0_5HZ = 0x02,
+    RATE_1HZ   = 0x03,
+    RATE_2HZ   = 0x04,
+    RATE_5HZ   = 0x05,
+    RATE_10HZ  = 0x06,
+    RATE_20HZ  = 0x07,
+    RATE_50HZ  = 0x08,
+    RATE_100HZ = 0x09,
+    RATE_125HZ = 0x0A,
+    RATE_200HZ = 0x0B,
+  };
+
   typedef struct {
     float X;   // roll  (deg, -180..180)
     float Y;   // pitch (deg,  -90..90)
     float Z;   // yaw   (deg, -180..180)
   } sSensorData_t;
 
-  /** Latest angles. X = roll, Y = pitch, Z = yaw (degrees). Kept for V1 code. */
+  /** Latest angles. X = roll, Y = pitch, Z = yaw (degrees). */
   sSensorData_t Angle;
 
   /**
@@ -62,8 +62,8 @@ public:
    *             On the Earle Philhower RP2040 core set the pins / FIFO size
    *             (Serial1.setRX(), setTX(), setFIFOSize()) before calling begin().
    */
-  explicit DFRobot_WT61PC(HardwareSerial &port);
-  explicit DFRobot_WT61PC(HardwareSerial *port);
+  explicit WT61P_YPR(HardwareSerial &port);
+  explicit WT61P_YPR(HardwareSerial *port);
 
   /**
    * @fn begin
@@ -72,15 +72,15 @@ public:
    *        angle-only data at that baud and rate, it scans all supported baud
    *        rates, then writes: angle-only output, @p rate, @p baud, and saves.
    * @param baud     Target baud rate (4800 ... 921600). Default 921600.
-   * @param rate     Output-rate code, FREQUENCY_xxx. Default 200 Hz.
+   * @param rate     Output-rate code, RATE_xxx. Default 200 Hz.
    * @param probeMs  Listen time per baud rate while searching. Must cover at
    *                 least two packets at the module's current output rate
    *                 (factory default 10 Hz -> 250 ms is plenty).
    * @return true if angle packets are being received at @p baud afterwards.
    *         Worst case (no module connected) takes ~10 * probeMs.
    */
-  bool begin(uint32_t baud = WT61PC_DEFAULT_BAUD,
-             uint8_t rate = FREQUENCY_200HZ,
+  bool begin(uint32_t baud = WT61P_DEFAULT_BAUD,
+             uint8_t rate = RATE_200HZ,
              uint16_t probeMs = 250);
 
   /**
@@ -91,7 +91,7 @@ public:
    */
   bool update(void);
 
-  /** V1-compatible alias of update(). Now non-blocking. */
+  /** Alias of update(). */
   bool available(void) { return update(); }
 
   // Latest angles in degrees (Z-Y-X Euler order, see datasheet 3.3).
@@ -124,7 +124,7 @@ public:
   /** Tell the module to change baud. Does NOT change the host UART. */
   bool setBaud(uint32_t baud);                          // FF AA 04 code 00
 
-  /** V1-compatible alias of setRate(). */
+  /** Alias of setRate(). */
   void modifyFrequency(uint8_t frequency) { setRate(frequency); }
 
   /** Baud -> register code (0x01..0x09), or 0 if unsupported. */

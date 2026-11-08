@@ -1,5 +1,5 @@
-// Host unit test: g++ -std=c++11 -Wall -Imock -I../.. test_wt61pc.cpp ../../DFRobot_WT61PC.cpp
-#include "DFRobot_WT61PC.h"
+// Host unit test: g++ -std=c++11 -Wall -Imock -I../.. test_wt61pc.cpp ../../WT61P_YPR.cpp
+#include "WT61P_YPR.h"
 #include <deque>
 #include <vector>
 #include <cmath>
@@ -108,7 +108,7 @@ static bool near(float a, float b) { return std::fabs(a - b) < 0.01f; }
 static void testParser()
 {
   ByteSrc src;
-  DFRobot_WT61PC imu(src);
+  WT61P_YPR imu(src);
 
   // Nothing buffered -> returns immediately, false.
   CHECK(!imu.update());
@@ -179,7 +179,7 @@ static void testBegin(bool baudOnSave)
   FakeWT wt;
   wt.baudOnSave = baudOnSave;
   wt.powerCycle();
-  DFRobot_WT61PC imu(wt);
+  WT61P_YPR imu(wt);
 
   uint64_t t0 = g_us;
   bool ok = imu.begin();
@@ -212,7 +212,7 @@ static void testBegin(bool baudOnSave)
 static void testNoSensor()
 {
   ByteSrc src;
-  DFRobot_WT61PC imu(src);
+  WT61P_YPR imu(src);
   uint64_t t0 = g_us;
   CHECK(!imu.begin());
   printf("begin with nothing connected: false after %.0f ms\n", (g_us - t0) / 1000.0);

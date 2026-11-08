@@ -1,11 +1,11 @@
 /*!
- * @file  DFRobot_WT61PC.cpp
- * @brief Non-blocking, angle-only driver for the DFRobot WT61PC / WitMotion WT61P.
+ * @file  WT61P_YPR.cpp
+ * @brief Non-blocking, angle-only driver for the WitMotion WT61P (DFRobot WT61PC).
  * @copyright Copyright (c) 2010 DFRobot Co.Ltd (http://www.dfrobot.com)
  * @license   The MIT License (MIT)
- * @version   V2.0
+ * @version   V1.0
  */
-#include "DFRobot_WT61PC.h"
+#include "WT61P_YPR.h"
 #include <string.h>
 
 static const float ANGLE_SCALE = 180.0f / 32768.0f;
@@ -13,7 +13,7 @@ static const float ANGLE_SCALE = 180.0f / 32768.0f;
 // Output rate in tenths of Hz, indexed by (rate code - 1).
 static const uint16_t RATE_HZ10[] = {2, 5, 10, 20, 50, 100, 200, 500, 1000, 1250, 2000};
 
-DFRobot_WT61PC::DFRobot_WT61PC(HardwareSerial &port)
+WT61P_YPR::WT61P_YPR(HardwareSerial &port)
   : _s(port), _baud(0), _idx(0), _lastType(0),
     _lastMicros(0), _lastMillis(0), _packets(0), _errors(0), _everReceived(false)
 {
@@ -21,13 +21,13 @@ DFRobot_WT61PC::DFRobot_WT61PC(HardwareSerial &port)
   Angle.X = Angle.Y = Angle.Z = 0.0f;
 }
 
-DFRobot_WT61PC::DFRobot_WT61PC(HardwareSerial *port) : DFRobot_WT61PC(*port) {}
+WT61P_YPR::WT61P_YPR(HardwareSerial *port) : WT61P_YPR(*port) {}
 
 /* ------------------------------------------------------------------------ */
 /*  Hot path                                                                */
 /* ------------------------------------------------------------------------ */
 
-bool DFRobot_WT61PC::update(void)
+bool WT61P_YPR::update(void)
 {
   // Only touch bytes that are already buffered -> never waits.
   int n = _s.available();
@@ -51,7 +51,7 @@ bool DFRobot_WT61PC::update(void)
 }
 
 // Byte-wise packet framer: 0x55 <type> <8 data bytes> <sum>.
-uint8_t DFRobot_WT61PC::feed(uint8_t c)
+uint8_t WT61P_YPR::feed(uint8_t c)
 {
   if (_idx == 0) {
     if (c == HDR) {
@@ -93,7 +93,7 @@ uint8_t DFRobot_WT61PC::feed(uint8_t c)
 // Drop the current header byte and restart framing at the next plausible
 // header already in the buffer, so a corrupted packet never costs us the
 // packet that follows it.
-void DFRobot_WT61PC::resync(void)
+void WT61P_YPR::resync(void)
 {
   const uint8_t n = _idx;
   uint8_t k = 1;
@@ -116,7 +116,7 @@ void DFRobot_WT61PC::resync(void)
   }
 }
 
-void DFRobot_WT61PC::decodeAngle(void)
+void WT61P_YPR::decodeAngle(void)
 {
   // Little-endian signed 16-bit. The int16_t cast matters on 32-bit MCUs
   // (RP2040, ESP32, ...): without it negative angles read as 180..360 deg.
@@ -129,7 +129,7 @@ void DFRobot_WT61PC::decodeAngle(void)
   _everReceived = true;
 }
 
-uint32_t DFRobot_WT61PC::age(void) const
+uint32_t WT61P_YPR::age(void) const
 {
   if (!_everReceived) {
     return 0xFFFFFFFFUL;
@@ -141,18 +141,18 @@ uint32_t DFRobot_WT61PC::age(void) const
 /*  Configuration                                                           */
 /* ------------------------------------------------------------------------ */
 
-void DFRobot_WT61PC::writeCmd(uint8_t reg, uint8_t lo, uint8_t hi)
+void WT61P_YPR::writeCmd(uint8_t reg, uint8_t lo, uint8_t hi)
 {
   const uint8_t cmd[5] = {0xFF, 0xAA, reg, lo, hi};
   _s.write(cmd, sizeof(cmd));
 }
 
-void DFRobot_WT61PC::unlock(void)                          { writeCmd(0x69, 0x88, 0xB5); }
-void DFRobot_WT61PC::save(void)                            { writeCmd(0x00, 0x00, 0x00); }
-void DFRobot_WT61PC::setRate(uint8_t rateCode)             { writeCmd(0x03, rateCode, 0x00); }
-void DFRobot_WT61PC::setOutputContent(uint8_t l, uint8_t h) { writeCmd(0x02, l, h); }
+void WT61P_YPR::unlock(void)                          { writeCmd(0x69, 0x88, 0xB5); }
+void WT61P_YPR::save(void)                            { writeCmd(0x00, 0x00, 0x00); }
+void WT61P_YPR::setRate(uint8_t rateCode)             { writeCmd(0x03, rateCode, 0x00); }
+void WT61P_YPR::setOutputContent(uint8_t l, uint8_t h) { writeCmd(0x02, l, h); }
 
-bool DFRobot_WT61PC::setBaud(uint32_t baud)
+bool WT61P_YPR::setBaud(uint32_t baud)
 {
   const uint8_t code = baudCode(baud);
   if (!code) {
@@ -162,7 +162,7 @@ bool DFRobot_WT61PC::setBaud(uint32_t baud)
   return true;
 }
 
-uint8_t DFRobot_WT61PC::baudCode(uint32_t baud)
+uint8_t WT61P_YPR::baudCode(uint32_t baud)
 {
   switch (baud) {
     case 4800:   return 0x01;
@@ -178,7 +178,7 @@ uint8_t DFRobot_WT61PC::baudCode(uint32_t baud)
   }
 }
 
-void DFRobot_WT61PC::drainInput(void)
+void WT61P_YPR::drainInput(void)
 {
   for (uint16_t i = 0; i < 2048 && _s.available() > 0; i++) {
     _s.read();
@@ -186,7 +186,7 @@ void DFRobot_WT61PC::drainInput(void)
   _idx = 0;
 }
 
-void DFRobot_WT61PC::openPort(uint32_t baud)
+void WT61P_YPR::openPort(uint32_t baud)
 {
   _s.end();
   _s.begin(baud);
@@ -194,7 +194,7 @@ void DFRobot_WT61PC::openPort(uint32_t baud)
   drainInput();
 }
 
-void DFRobot_WT61PC::probe(uint16_t ms, bool stopEarly, ProbeResult &r)
+void WT61P_YPR::probe(uint16_t ms, bool stopEarly, ProbeResult &r)
 {
   r.valid = r.angle = r.other = 0;
   _idx = 0;
@@ -222,9 +222,9 @@ void DFRobot_WT61PC::probe(uint16_t ms, bool stopEarly, ProbeResult &r)
   }
 }
 
-bool DFRobot_WT61PC::begin(uint32_t baud, uint8_t rate, uint16_t probeMs)
+bool WT61P_YPR::begin(uint32_t baud, uint8_t rate, uint16_t probeMs)
 {
-  if (!baudCode(baud) || rate < FREQUENCY_0_2HZ || rate > FREQUENCY_200HZ) {
+  if (!baudCode(baud) || rate < RATE_0_2HZ || rate > RATE_200HZ) {
     return false;
   }
 

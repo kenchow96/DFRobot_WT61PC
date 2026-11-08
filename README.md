@@ -1,10 +1,13 @@
-# DFRobot_WT61PC (V2: non-blocking, angle-only)
+# WT61P_YPR
 * [中文版](./README_CN.md)
 
-Driver for the DFRobot WT61PC (SKU: SEN0386). The module is a WitMotion **WT61P**
-AHRS IMU with a DFRobot sticker, so it follows the WitMotion WT61P serial protocol.
+Non-blocking roll / pitch / yaw driver for the WitMotion **WT61P** AHRS IMU, which
+DFRobot also sells as the WT61PC (SKU: SEN0386).
 
-V2 is a rewrite focused on speed and keeping `loop()` responsive:
+This library is a rewrite of DFRobot's `DFRobot_WT61PC` library (V1) focused on
+speed and keeping `loop()` responsive. It has its own name (`WT61P_YPR`, header
+`WT61P_YPR.h`, class `WT61P_YPR`), so it can be installed alongside the DFRobot
+library without a conflict.
 
 - **`update()` never blocks.** It only parses bytes already in the UART receive
   buffer, using a byte-wise state machine, and returns straight away. V1's
@@ -25,10 +28,10 @@ Product link: https://www.dfrobot.com/product-2200.html
 
 ## Installation
 
-1. Download [`dist/DFRobot_WT61PC-2.0.0.zip`](./dist/DFRobot_WT61PC-2.0.0.zip)
+1. Download [`dist/WT61P_YPR-1.0.0.zip`](./dist/WT61P_YPR-1.0.0.zip)
    (on GitHub: open the file, then click **Download raw file**).
 2. Arduino IDE: **Sketch → Include Library → Add .ZIP Library…** and select the zip.
-3. The example is under **File → Examples → DFRobot_WT61PC → getData**.
+3. The example is under **File → Examples → WT61P_YPR → YPR**.
 
 ## Wiring (Raspberry Pi Pico / RP2040, Earle Philhower core)
 
@@ -42,8 +45,8 @@ Product link: https://www.dfrobot.com/product-2200.html
 ## Usage
 
 ```C++
-#include <DFRobot_WT61PC.h>
-DFRobot_WT61PC imu(Serial1);
+#include <WT61P_YPR.h>
+WT61P_YPR imu(Serial1);
 
 void setup() {
   Serial1.setRX(1);
@@ -61,7 +64,7 @@ void loop() {
 }
 ```
 
-See `example/getData/getData.ino` for a complete sketch that streams
+See `examples/YPR/YPR.ino` for a complete sketch that streams
 `yaw,pitch,roll` CSV over USB without ever blocking on the USB buffer either.
 
 **First boot:** after `begin()` has reconfigured a factory module, power-cycle the
@@ -71,20 +74,20 @@ re-power on some firmware.
 ## Methods
 
 ```C++
-  DFRobot_WT61PC(HardwareSerial &port);   // also accepts &Serial1 (V1 style)
+  WT61P_YPR(HardwareSerial &port);   // or WT61P_YPR(&Serial1)
 
   // BLOCKING, call once from setup(). Takes ~250 ms when the module is already
   // configured and ~1.2 s on first-time setup. If nothing answers it gives up
   // after ~10 * probeMs.
-  bool begin(uint32_t baud = 921600, uint8_t rate = FREQUENCY_200HZ, uint16_t probeMs = 250);
+  bool begin(uint32_t baud = WT61P_DEFAULT_BAUD /*921600*/, uint8_t rate = WT61P_YPR::RATE_200HZ, uint16_t probeMs = 250);
 
   bool update(void);       // NON-BLOCKING. true = new angle packet decoded
-  bool available(void);    // V1 alias of update()
+  bool available(void);    // alias of update()
 
   float roll(void);        // X, degrees, -180..180
   float pitch(void);       // Y, degrees,  -90..90
   float yaw(void);         // Z, degrees, -180..180
-  sSensorData_t Angle;     // V1 compatible: Angle.X/Y/Z = roll/pitch/yaw
+  sSensorData_t Angle;     // Angle.X/Y/Z = roll/pitch/yaw
 
   int16_t rawRoll(void), rawPitch(void), rawYaw(void);   // deg = raw * 180 / 32768
 
@@ -97,13 +100,18 @@ re-power on some firmware.
   // Low-level commands (5 bytes each, non-blocking)
   void unlock(void);
   void save(void);
-  void setRate(uint8_t rateCode);               // FREQUENCY_xxx
-  void modifyFrequency(uint8_t frequency);      // V1 alias of setRate()
+  void setRate(uint8_t rateCode);               // WT61P_YPR::RATE_xxx
+  void modifyFrequency(uint8_t frequency);      // alias of setRate()
   void setOutputContent(uint8_t rswl, uint8_t rswh = 0);
   bool setBaud(uint32_t baud);                  // module side only
 ```
 
-### Migrating from V1
+### Migrating from DFRobot_WT61PC (V1)
+
+- Change `#include <DFRobot_WT61PC.h>` to `#include <WT61P_YPR.h>` and the class
+  name `DFRobot_WT61PC` to `WT61P_YPR`.
+- `FREQUENCY_xxx` becomes `WT61P_YPR::RATE_xxx` (the V1 name `FREQUENCY_0_1HZ` was
+  actually 0.2 Hz, now `RATE_0_2HZ`).
 
 - `available()` is still there but is now non-blocking. It returns `false`
   straight away when no complete angle packet is buffered.
@@ -125,14 +133,15 @@ make `errorCount()` climb, use `imu.begin(460800)` or `imu.begin(230400)`.
 
 ```
 cd extras/test
-g++ -std=c++11 -Wall -Imock -I../.. test_wt61pc.cpp ../../DFRobot_WT61PC.cpp && ./a.out
+g++ -std=c++11 -Wall -Imock -I../.. test_wt61pc.cpp ../../WT61P_YPR.cpp && ./a.out
 ```
 
 ## History
 
-- 2026/11/08 - Version 2.0.0: non-blocking angle-only rewrite, auto baud / config, signed-angle fix.
-- 2023/07/12 - Version 1.0.0 released.
+- 2026/11/08 - WT61P_YPR 1.0.0: renamed from DFRobot_WT61PC to avoid clashing with the DFRobot library.
+  Non-blocking angle-only rewrite, auto baud / config, signed-angle fix.
+- 2023/07/12 - DFRobot_WT61PC 1.0.0 released by DFRobot.
 
 ## Credits
 
-Originally written by huyujie(yujie.hu@dfrobot.com). (Welcome to our [website](https://www.dfrobot.com/))
+Based on DFRobot_WT61PC, originally written by huyujie(yujie.hu@dfrobot.com). (Welcome to our [website](https://www.dfrobot.com/))

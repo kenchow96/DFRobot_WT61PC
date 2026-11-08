@@ -1,6 +1,6 @@
 /*!
- * @file getData.ino
- * @brief Non-blocking yaw / pitch / roll from a WT61PC (WitMotion WT61P) on an
+ * @file YPR.ino
+ * @brief Non-blocking yaw / pitch / roll from a WitMotion WT61P (DFRobot WT61PC) on an
  *        RP2040 (Earle Philhower arduino-pico core).
  *
  * Wiring (Raspberry Pi Pico, Serial1 = UART0):
@@ -19,13 +19,13 @@
  *
  * @license The MIT License (MIT)
  */
-#include <DFRobot_WT61PC.h>
+#include <WT61P_YPR.h>
 
 #define IMU_SERIAL Serial1
 #define IMU_RX_PIN 1
 #define IMU_TX_PIN 0
 
-DFRobot_WT61PC imu(IMU_SERIAL);
+WT61P_YPR imu(IMU_SERIAL);
 
 // Format centi-degrees as "-123.45" without float printf.
 static char *fmtCenti(char *p, int32_t cd)
@@ -51,11 +51,11 @@ void setup()
 #endif
 
   // 921600 baud, 200 Hz, angle packets only.
-  while (!imu.begin(WT61PC_DEFAULT_BAUD, FREQUENCY_200HZ)) {
-    Serial.println("WT61PC not found, retrying...");
+  while (!imu.begin(WT61P_DEFAULT_BAUD, WT61P_YPR::RATE_200HZ)) {
+    Serial.println("WT61P not found, retrying...");
     delay(200);
   }
-  Serial.print("WT61PC ready at ");
+  Serial.print("WT61P ready at ");
   Serial.print(imu.baud());
   Serial.println(" baud");
 }

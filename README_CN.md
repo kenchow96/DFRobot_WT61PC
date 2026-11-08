@@ -1,8 +1,9 @@
-# DFRobot_WT61PC
+# WT61P_YPR
 
-> **V2 说明**：本库已重写为非阻塞、仅输出角度（横滚/俯仰/航向）的版本。`update()` 不会阻塞，
+> **WT61P_YPR 说明**：本库是 DFRobot_WT61PC 的重写版本，已改名为 `WT61P_YPR`（头文件 `WT61P_YPR.h`，
+> 类名 `WT61P_YPR`），可与 DFRobot 官方库同时安装而不冲突。`update()` 不会阻塞，仅输出角度（横滚/俯仰/航向），
 > `begin()` 自动检测模块波特率并将其配置为仅角度输出、200 Hz、921600 波特率。
-> 完整 API 请参阅英文版 [README.md](./README.md)。以下 V1 文档仅供参考。
+> 完整 API 请参阅英文版 [README.md](./README.md)。以下为原 DFRobot_WT61PC V1 文档，仅供参考。
 
 * [English Version](./README.md)
 
