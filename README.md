@@ -23,6 +23,13 @@ V2 is a rewrite focused on speed and keeping `loop()` responsive:
 
 Product link: https://www.dfrobot.com/product-2200.html
 
+## Installation
+
+1. Download [`dist/DFRobot_WT61PC-2.0.0.zip`](./dist/DFRobot_WT61PC-2.0.0.zip)
+   (on GitHub: open the file, then click **Download raw file**).
+2. Arduino IDE: **Sketch → Include Library → Add .ZIP Library…** and select the zip.
+3. The example is under **File → Examples → DFRobot_WT61PC → getData**.
+
 ## Wiring (Raspberry Pi Pico / RP2040, Earle Philhower core)
 
 | WT61PC | Pico |
