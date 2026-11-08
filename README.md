@@ -132,6 +132,25 @@ At 200 Hz angle-only output the module sends 2200 bytes/s, which any baud from
 make `errorCount()` climb, use `imu.begin(460800)` or `imu.begin(230400)`.
 `begin()` will find the module and move it to the new baud.
 
+## Known issues
+
+### Some modules stay at 9600 baud (2026-11-08, not pursued)
+
+Seen on one DFRobot WT61PC (SEN0386), RP2040 / Earle Philhower core:
+
+- `imu.begin(9600)` works.
+- `imu.begin()` (921600) and `imu.begin(115200)` never get the module off 9600,
+  even after power-cycling it. Since 1.0.1, `begin()` falls back to 9600, returns
+  `true` and reports `powerCycleNeeded()`. Before 1.0.1 it returned `false`.
+- Cause not established. The module may ignore the baud command (register 0x04)
+  or not save it. Untested: whether it accepts the rate (0x03) and output
+  content (0x02) writes, and whether WitMotion's PC software can change its baud.
+
+**Workaround:** call `imu.begin(9600)` for these modules. Any other target baud
+makes `begin()` find the module at 9600 and rewrite its settings on every boot,
+which takes about 1.5 s and wears the module's flash. At 9600 baud the link can
+carry at most about 87 angle packets/s (11.5 ms per packet).
+
 ## Tests
 
 `extras/test` holds a host-side test with a simulated WT61P:
