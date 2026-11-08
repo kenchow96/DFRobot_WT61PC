@@ -15,7 +15,8 @@ static const uint16_t RATE_HZ10[] = {2, 5, 10, 20, 50, 100, 200, 500, 1000, 1250
 
 WT61P_YPR::WT61P_YPR(HardwareSerial &port)
   : _s(port), _baud(0), _idx(0), _lastType(0),
-    _lastMicros(0), _lastMillis(0), _packets(0), _errors(0), _everReceived(false)
+    _lastMicros(0), _lastMillis(0), _packets(0), _errors(0), _everReceived(false),
+    _powerCycleNeeded(false)
 {
   _raw[0] = _raw[1] = _raw[2] = 0;
   Angle.X = Angle.Y = Angle.Z = 0.0f;
@@ -256,18 +257,8 @@ bool WT61P_YPR::begin(uint32_t baud, uint8_t rate, uint16_t probeMs)
 
   // 3) Decide whether the module's stored config needs rewriting. Only do it
   //    when necessary so normal boots never write the module's flash.
-  bool reconfigure = (found != baud);
-  if (!reconfigure) {
-    uint32_t wantHz10 = RATE_HZ10[rate - 1];
-    const uint32_t maxHz10 = baud / 11;              // 11-byte packets, 10 bits/byte
-    if (wantHz10 > maxHz10) {
-      wantHz10 = maxHz10;
-    }
-    // Reconfigure if fewer than 60 % of the expected angle packets arrived.
-    if ((uint64_t)r.angle * 100000ULL < (uint64_t)wantHz10 * probeMs * 6ULL) {
-      reconfigure = true;
-    }
-  }
+  _powerCycleNeeded = false;
+  const bool reconfigure = (found != baud) || rateTooLow(r, rate, baud, probeMs);
 
   if (reconfigure) {
     unlock();                       _s.flush(); delay(30);
@@ -287,13 +278,38 @@ bool WT61P_YPR::begin(uint32_t baud, uint8_t rate, uint16_t probeMs)
     }
   }
 
-  // 4) Verify at the target baud (already verified by step 1 if untouched).
+  // 4) Verify (already verified by step 1 if nothing was written).
   if (reconfigure) {
     drainInput();
     probe(probeMs, false, r);
+
+    if (r.angle == 0 && found != baud) {
+      // Some firmware saves a new baud but keeps using the old one until it
+      // is power-cycled. Keep talking at the old baud for this session; the
+      // next begin() after a power cycle finds it at the new baud and writes
+      // nothing.
+      openPort(found);
+      probe(probeMs, false, r);
+      _powerCycleNeeded = r.angle > 0;
+    } else if (r.angle > 0 && rateTooLow(r, rate, _baud, probeMs)) {
+      // Rate / output content saved but not applied until a power cycle.
+      _powerCycleNeeded = true;
+    }
   }
 
   _packets = 0;
   _errors = 0;
   return r.angle > 0;
+}
+
+// True if fewer than 60 % of the angle packets expected at @p rate arrived
+// (capped at what @p baud can carry).
+bool WT61P_YPR::rateTooLow(const ProbeResult &r, uint8_t rate, uint32_t baud, uint16_t probeMs)
+{
+  uint32_t wantHz10 = RATE_HZ10[rate - 1];
+  const uint32_t maxHz10 = baud / 11;              // 11-byte packets, 10 bits/byte
+  if (wantHz10 > maxHz10) {
+    wantHz10 = maxHz10;
+  }
+  return (uint64_t)r.angle * 100000ULL < (uint64_t)wantHz10 * probeMs * 6ULL;
 }

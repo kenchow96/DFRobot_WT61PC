@@ -76,7 +76,10 @@ public:
    * @param probeMs  Listen time per baud rate while searching. Must cover at
    *                 least two packets at the module's current output rate
    *                 (factory default 10 Hz -> 250 ms is plenty).
-   * @return true if angle packets are being received at @p baud afterwards.
+   * @return true if angle packets are being received. Normally that is at
+   *         @p baud. If the module's firmware only applies a new baud after a
+   *         power cycle, begin() keeps using the old baud for this session and
+   *         powerCycleNeeded() returns true; check baud() for the actual rate.
    *         Worst case (no module connected) takes ~10 * probeMs.
    */
   bool begin(uint32_t baud = WT61P_DEFAULT_BAUD,
@@ -114,6 +117,12 @@ public:
   uint32_t errorCount(void) const { return _errors; }
   /** Baud rate the host UART is currently running at. */
   uint32_t baud(void) const { return _baud; }
+  /**
+   * true if begin() saved a new baud / rate / output setting that the module
+   * will only apply after its power is cycled. Until then it keeps running
+   * with its previous settings (begin() still returns true and update() works).
+   */
+  bool powerCycleNeeded(void) const { return _powerCycleNeeded; }
 
   // ---- Low-level configuration commands (non-blocking, 5 bytes each). ----
   // Newer WT61P firmware needs unlock() before a write and save() after it.
@@ -161,6 +170,7 @@ private:
   uint32_t _packets;
   uint32_t _errors;
   bool     _everReceived;
+  bool     _powerCycleNeeded;
 
   uint8_t feed(uint8_t c);      // returns packet type when one completes, else 0
   void    resync(void);
@@ -169,6 +179,7 @@ private:
   void    openPort(uint32_t baud);
   void    drainInput(void);
   void    probe(uint16_t ms, bool stopEarly, ProbeResult &r);
+  static bool rateTooLow(const ProbeResult &r, uint8_t rate, uint32_t baud, uint16_t probeMs);
 };
 
 #endif

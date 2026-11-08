@@ -26,8 +26,10 @@ struct FakeWT : public HardwareSerial {
   // persisted (flash) + live config
   uint32_t flashBaud = 9600, flashRate = 0x06, flashRsw = 0x1E;
   uint32_t baud = 9600, rate = 0x06, rsw = 0x1E;
-  bool baudOnSave = false;          // firmware variant
+  bool baudOnSave = false;          // firmware variant: baud applies on save
+  bool applyOnReboot = false;       // firmware variant: nothing applies until power cycle
   uint32_t pendingBaud = 0;
+  uint32_t stBaud = 9600, stRate = 0x06, stRsw = 0x1E;   // staged (written, not yet saved)
   bool unlocked = false;
   int saves = 0, cmds = 0;
 
@@ -40,7 +42,10 @@ struct FakeWT : public HardwareSerial {
   static uint32_t rateHz10(uint32_t r) { static const uint16_t t[] = {2,5,10,20,50,100,200,500,1000,1250,2000}; return t[r-1]; }
   static uint32_t codeBaud(uint8_t c) { static const uint32_t t[] = {4800,9600,19200,38400,57600,115200,230400,460800,921600}; return t[c-1]; }
 
-  void powerCycle() { baud = flashBaud; rate = flashRate; rsw = flashRsw; unlocked = false; pendingBaud = 0; nextPktUs = g_us; }
+  void powerCycle() {
+    baud = stBaud = flashBaud; rate = stRate = flashRate; rsw = stRsw = flashRsw;
+    unlocked = false; pendingBaud = 0; nextPktUs = g_us;
+  }
 
   void pump() {
     while (nextPktUs <= g_us) {
@@ -64,12 +69,17 @@ struct FakeWT : public HardwareSerial {
     if (reg == 0x69 && lo == 0x88 && hi == 0xB5) { unlocked = true; return; }
     if (!unlocked) return;
     switch (reg) {
-      case 0x02: rsw = lo | (hi << 8); break;
-      case 0x03: rate = lo; break;
-      case 0x04: if (baudOnSave) pendingBaud = codeBaud(lo); else baud = codeBaud(lo); break;
+      case 0x02: stRsw = lo | (hi << 8); if (!applyOnReboot) rsw = stRsw; break;
+      case 0x03: stRate = lo;            if (!applyOnReboot) rate = stRate; break;
+      case 0x04:
+        stBaud = codeBaud(lo);
+        if (applyOnReboot) {}
+        else if (baudOnSave) pendingBaud = stBaud;
+        else baud = stBaud;
+        break;
       case 0x00:
         if (pendingBaud) { baud = pendingBaud; pendingBaud = 0; }
-        flashBaud = baud; flashRate = rate; flashRsw = rsw; saves++; break;
+        flashBaud = stBaud; flashRate = stRate; flashRsw = stRsw; saves++; break;
     }
   }
 
@@ -188,6 +198,7 @@ static void testBegin(bool baudOnSave)
          (unsigned)wt.baud, (unsigned)wt.rate, (unsigned)wt.rsw);
   CHECK(ok);
   CHECK(imu.baud() == 921600);
+  CHECK(!imu.powerCycleNeeded());
   CHECK(wt.flashBaud == 921600 && wt.flashRate == 0x0B && wt.flashRsw == 0x08);
 
   // Normal operation: ~200 packets/s, only angle packets, update() is cheap.
@@ -209,6 +220,58 @@ static void testBegin(bool baudOnSave)
   CHECK(wt.saves == savesBefore && wt.cmds == cmdsBefore);
 }
 
+// Firmware that saves settings but applies them only after a power cycle
+// (the datasheet says this about the rate; it can apply to baud too).
+static void testApplyOnReboot()
+{
+  FakeWT wt;
+  wt.applyOnReboot = true;
+  wt.powerCycle();
+  WT61P_YPR imu(wt);
+
+  uint64_t t0 = g_us;
+  bool ok = imu.begin();
+  printf("begin (factory, settings apply only after power cycle): ok=%d took %.0f ms, saves=%d, "
+         "host baud=%u, powerCycleNeeded=%d\n", ok, (g_us - t0) / 1000.0, wt.saves,
+         (unsigned)imu.baud(), imu.powerCycleNeeded());
+  CHECK(ok);                                  // must not fail / loop forever
+  CHECK(imu.baud() == 9600);                  // still talking at the old baud
+  CHECK(imu.powerCycleNeeded());
+  CHECK(wt.flashBaud == 921600 && wt.flashRate == 0x0B && wt.flashRsw == 0x08);
+
+  // Data still flows at the old settings (10 Hz) this session.
+  uint64_t start = g_us; uint32_t n = 0;
+  while (g_us - start < 1000000) { if (imu.update()) n++; g_us += 100; }
+  printf("  1 s of loop() before power cycle: %u fresh angle updates\n", (unsigned)n);
+  CHECK(n >= 9 && n <= 11);
+
+  // Sketch re-uploaded without power-cycling the module: still works.
+  ok = imu.begin();
+  CHECK(ok && imu.baud() == 9600 && imu.powerCycleNeeded());
+
+  // Power cycle: comes up at 921600 / 200 Hz / angle-only, nothing written.
+  wt.powerCycle();
+  int savesBefore = wt.saves, cmdsBefore = wt.cmds;
+  t0 = g_us;
+  ok = imu.begin();
+  printf("  after power cycle: ok=%d took %.0f ms, host baud=%u, powerCycleNeeded=%d, new commands=%d\n",
+         ok, (g_us - t0) / 1000.0, (unsigned)imu.baud(), imu.powerCycleNeeded(), wt.cmds - cmdsBefore);
+  CHECK(ok && imu.baud() == 921600 && !imu.powerCycleNeeded());
+  CHECK(wt.saves == savesBefore && wt.cmds == cmdsBefore);
+  start = g_us; n = 0;
+  while (g_us - start < 1000000) { if (imu.update()) n++; g_us += 100; }
+  printf("  1 s of loop() after power cycle: %u fresh angle updates\n", (unsigned)n);
+  CHECK(n >= 190 && n <= 201);
+
+  // begin(9600) on a factory module: no baud change, rate saved -> power cycle flagged.
+  FakeWT wt2; wt2.applyOnReboot = true; wt2.powerCycle();
+  WT61P_YPR imu2(wt2);
+  ok = imu2.begin(9600);
+  printf("  begin(9600) on factory module: ok=%d host baud=%u powerCycleNeeded=%d\n",
+         ok, (unsigned)imu2.baud(), imu2.powerCycleNeeded());
+  CHECK(ok && imu2.baud() == 9600 && imu2.powerCycleNeeded());
+}
+
 static void testNoSensor()
 {
   ByteSrc src;
@@ -223,6 +286,7 @@ int main()
   testParser();
   testBegin(false);
   testBegin(true);
+  testApplyOnReboot();
   testNoSensor();
   printf(g_fail ? "%d FAILURE(S)\n" : "ALL PASSED\n", g_fail);
   return g_fail ? 1 : 0;

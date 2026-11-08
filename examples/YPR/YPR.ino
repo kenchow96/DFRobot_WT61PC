@@ -10,9 +10,10 @@
  *   WT61PC RX  -> GP0 (Serial1 TX)
  *
  * First boot: begin() finds the module at its factory 9600 baud, switches it to
- * angle-only output at 200 Hz and 921600 baud and saves that. Power-cycle the
- * module once afterwards in case its firmware only applies the rate on reboot.
- * Later boots detect it at 921600 straight away and write nothing.
+ * angle-only output at 200 Hz and 921600 baud and saves that. Some modules only
+ * apply new settings after a power cycle: begin() then keeps running at the old
+ * baud and powerCycleNeeded() is true. Unplug the module's VCC once (re-uploading
+ * the sketch is not enough). Later boots find it at 921600 and write nothing.
  *
  * loop() never waits on the sensor: imu.update() only parses bytes that are
  * already buffered, and printing is skipped if the USB buffer is full.
@@ -58,6 +59,11 @@ void setup()
   Serial.print("WT61P ready at ");
   Serial.print(imu.baud());
   Serial.println(" baud");
+  if (imu.powerCycleNeeded()) {
+    // New baud/rate were saved, but this module applies them only after a
+    // power cycle. It keeps working at the old settings until then.
+    Serial.println("Settings saved: power-cycle the WT61P (unplug its VCC) to apply 921600 baud / 200 Hz.");
+  }
 }
 
 void loop()

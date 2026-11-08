@@ -28,7 +28,7 @@ Product link: https://www.dfrobot.com/product-2200.html
 
 ## Installation
 
-1. Download [`dist/WT61P_YPR-1.0.0.zip`](./dist/WT61P_YPR-1.0.0.zip)
+1. Download [`dist/WT61P_YPR-1.0.1.zip`](./dist/WT61P_YPR-1.0.1.zip)
    (on GitHub: open the file, then click **Download raw file**).
 2. Arduino IDE: **Sketch → Include Library → Add .ZIP Library…** and select the zip.
 3. The example is under **File → Examples → WT61P_YPR → YPR**.
@@ -67,9 +67,13 @@ void loop() {
 See `examples/YPR/YPR.ino` for a complete sketch that streams
 `yaw,pitch,roll` CSV over USB without ever blocking on the USB buffer either.
 
-**First boot:** after `begin()` has reconfigured a factory module, power-cycle the
-module once. The datasheet says a changed output rate only takes effect after a
-re-power on some firmware.
+**First boot / power cycle:** some WT61P firmware saves a new baud and rate but
+keeps using the old ones until its power is cycled. `begin()` detects this: it
+keeps talking at the old baud for this session, returns `true`, and
+`powerCycleNeeded()` returns `true`. Unplug the module's VCC once (re-uploading
+the sketch does not power-cycle it). The next `begin()` finds it at the new baud
+and writes nothing. If the module is not found at all, run
+`examples/Diagnose/Diagnose.ino`.
 
 ## Methods
 
@@ -96,6 +100,7 @@ re-power on some firmware.
   uint32_t packetCount(void);      // good angle packets
   uint32_t errorCount(void);       // checksum failures
   uint32_t baud(void);             // current host UART baud
+  bool powerCycleNeeded(void);     // settings saved, applied after module power cycle
 
   // Low-level commands (5 bytes each, non-blocking)
   void unlock(void);
@@ -138,6 +143,8 @@ g++ -std=c++11 -Wall -Imock -I../.. test_wt61pc.cpp ../../WT61P_YPR.cpp && ./a.o
 
 ## History
 
+- 2026/11/08 - WT61P_YPR 1.0.1: begin() handles modules that only apply a new baud / rate after a
+  power cycle (keeps running at the old baud, powerCycleNeeded()); Diagnose example.
 - 2026/11/08 - WT61P_YPR 1.0.0: renamed from DFRobot_WT61PC to avoid clashing with the DFRobot library.
   Non-blocking angle-only rewrite, auto baud / config, signed-angle fix.
 - 2023/07/12 - DFRobot_WT61PC 1.0.0 released by DFRobot.

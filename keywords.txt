@@ -27,6 +27,7 @@ lastUpdateMicros	KEYWORD2
 packetCount	KEYWORD2
 errorCount	KEYWORD2
 baud	KEYWORD2
+powerCycleNeeded	KEYWORD2
 unlock	KEYWORD2
 save	KEYWORD2
 setRate	KEYWORD2
